@@ -1,6 +1,5 @@
-import pickle
+import errno
 import socket
-import struct
 import message
 from message import Message, HostType, MessageType
 import logging
@@ -9,7 +8,6 @@ import files
 import key_gen
 import tracker
 from _thread import *
-import threading
 import tqdm
 import os
 
@@ -73,7 +71,6 @@ class Server:
             for _ in progress:
                 bytes_read = f.read(
                     files.BUFFER_SIZE - Message.metadata_length - message.FileTransfer.total_metadata_length - len(filename))
-                print(len(bytes_read))
                 if not bytes_read:
                     break
                 msg = Message.encode(MessageType.File.value, (filename, filesize, bytes_read))
@@ -84,8 +81,10 @@ class Server:
         for dir in self.directories:
             for file in files.get_absolute_file_paths(dir):
                 self.send_file(conn, file)
-
         logging.info("Sent all files")
+        msg = Message.encode(MessageType.File.value, ("", 0, bytes()))
+        conn.send(msg)
+
     def listen_for_connections(self):
         logging.info("Started thread: listening for connections")
         while True:

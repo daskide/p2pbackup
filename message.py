@@ -1,7 +1,5 @@
 from struct import pack, unpack
 from enum import Enum
-import pickle
-import ipaddress
 import key_gen
 from socket import inet_aton, inet_ntoa
 

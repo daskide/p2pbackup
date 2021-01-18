@@ -1,16 +1,12 @@
 import socket
-import struct
 from message import Message, HostType, MessageType
 import logging
 from logger import prepare_logger
 import key_gen
 import tracker
 from _thread import *
-import threading
 import server
-import enum
 import files
-import os
 
 default_port = 7854
 
@@ -23,7 +19,6 @@ class Client:
         self.open_connections = 100
         self.servers = []
         self.connected_clients = []
-        self.paths_of_files_to_backup = []
         self.ip = "localhost"
         self.backup_directory = "\\BACKUP"
 
@@ -55,17 +50,20 @@ class Client:
         msg = self.s.recv(files.BUFFER_SIZE)
         filename, file_size, bytesread, file_part = Message.decode(msg)
         other_filename = filename
+        downloaded_bytes = 0
         while file_part:
             file_save_location = files.get_save_location(other_filename, self.backup_directory)
             files.make_dirs(file_save_location)
             file = open(file_save_location, "wb")
             while filename == other_filename:
-                logging.info(f"Downloading file {filename}: {file_size}")
+                downloaded_bytes += bytesread
+                logging.info(f"Downloading file {filename}: {downloaded_bytes} / {file_size}")
                 file.write(file_part)
                 msg = self.s.recv(files.BUFFER_SIZE)
                 other_filename, file_size, bytesread, file_part = Message.decode(msg)
             file.close()
             filename = other_filename
+            downloaded_bytes = 0
         logging.info("All files has been received")
 
 

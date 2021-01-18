@@ -1,10 +1,7 @@
-import pickle
 import socket
-import struct
 import logging
 from message import Message, HostType
 from logger import prepare_logger
-import enum
 
 default_tracker_port = 6703
 
