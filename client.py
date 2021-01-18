@@ -12,8 +12,6 @@ import enum
 import files
 import os
 
-print_lock = threading.Lock()
-
 default_port = 7854
 
 class Client:

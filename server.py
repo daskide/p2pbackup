@@ -13,11 +13,7 @@ import threading
 import tqdm
 import os
 
-print_lock = threading.Lock()
-
 default_port = 31234
-
-# ma swoj port
 
 class Server:
     def __init__(self):
@@ -100,7 +96,6 @@ class Server:
             # send_message(conn, payload, address)
 
     def run(self):
-        #self.test()
         start_new_thread(self.retrieve_clients_from_tracker, ())
         start_new_thread(self.listen_for_connections, ())
         while True:
@@ -111,7 +106,6 @@ class Server:
 
 
 if __name__ == '__main__':
-    #serversocket.bind((socket.gethostname(), 80)) whole world
     prepare_logger(HostType.SERVER.name)
     server = Server()
     server.start()
