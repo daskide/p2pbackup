@@ -7,6 +7,8 @@ To make it work, you have to lunch
 - server.py which is responsible for sending ur local files to the other peers
 - client.py which stores backup
 
+Required python modules: tqdm
+
 TO DO:
 - make it work globally instead of localhost
 - handle console input

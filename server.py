@@ -51,7 +51,7 @@ class Server:
     def retrieve_clients_from_tracker(self):
         sock = socket.socket()
         sock.connect((self.ip, self.tracker_port))
-        msg = Message.encode(MessageType.Request.value, (HostType.SERVER.value, key_gen.gen_key()))
+        msg = Message.encode(MessageType.Request.value, (HostType.SERVER.value, self.port, key_gen.gen_key()))
         sock.send(msg)
         payload = sock.recv(1024);
         msg = Message.decode(payload)
@@ -82,8 +82,8 @@ class Server:
             for file in files.get_absolute_file_paths(dir):
                 self.send_file(conn, file)
         logging.info("Sent all files")
-        msg = Message.encode(MessageType.File.value, ("", 0, bytes()))
-        conn.send(msg)
+        #msg = Message.encode(MessageType.File.value, ("", 0, bytes()))
+        #conn.send(msg)
 
     def listen_for_connections(self):
         logging.info("Started thread: listening for connections")

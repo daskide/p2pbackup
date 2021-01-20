@@ -1,9 +1,23 @@
 import socket
 import logging
-from message import Message, HostType
+from message import Message, HostType, MessageType
 from logger import prepare_logger
-
+from _thread import start_new_thread
 default_tracker_port = 6703
+
+
+def prepare_trackers(trackers):
+    tracker_list = []
+    for tr in trackers:
+        s = socket.socket()
+        dic = tracker_to_dict(s, tr[0], tr[1])
+        tracker_list.append(dic)
+    return tracker_list
+
+
+def tracker_to_dict(socket, ip, port):
+    return {"socket": socket, "ip": ip, "port": port}
+
 
 class Tracker:
 
@@ -14,28 +28,32 @@ class Tracker:
         self.tracker_port = default_tracker_port
         self.ip = "localhost"
 
-    def handle_payload(self, address, host_type, host_key):
+    def handle_payload(self, host_ip, host_port, host_type, host_key):
         if HostType(host_type) is HostType.SERVER:
-            self.connections[host_key]["servers"].append(address)
-            return Message.encode(2, self.connections[host_key]["clients"]) # TO CHANGE TO CLIENTS
+            self.connections[host_key]["servers"].append((host_ip, host_port))
+            return Message.encode(MessageType.PeersMessage.value, self.connections[host_key]["clients"])
         elif HostType(host_type) is HostType.CLIENT:
-            self.connections[host_key]["clients"].append(address)
-            return Message.encode(2, self.connections[host_key]["servers"])
+            self.connections[host_key]["clients"].append((host_ip, host_port))
+            return Message.encode(MessageType.PeersMessage.value, self.connections[host_key]["servers"])
 
-    def send_message(self, conn, payload, address):
-        host_type, host_key = Message.decode(payload)
+    def send_message_about_connected_hosts(self, conn, payload, host_ip):
+        host_type, host_port, host_key = Message.decode(payload)
         if host_key not in self.connections.keys():
             self.connections[host_key] = {"clients": [], "servers": []}
         logging.info(f"Sending connected peers info to {HostType(host_type).name} on key: {host_key}")
-        msg = self.handle_payload(address, host_type, host_key)
+        msg = self.handle_payload(host_ip, host_port, host_type, host_key)
         conn.send(msg)
+
+    def listen_for_message(self, conn, address):
+        while True:
+            payload = conn.recv(1024)
+            self.send_message_about_connected_hosts(conn, payload, address[0])
+        conn.close()
 
     def listen_for_connections(self):
         (conn, address) = self.sock.accept()
         logging.info("Accepted a connection request from %s:%s" % (address[0], address[1]))
-        payload = conn.recv(1024)
-        self.send_message(conn, payload, address)
-        conn.close()
+        start_new_thread(self.listen_for_message, (conn, address))
 
     def run(self):
         while True:

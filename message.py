@@ -19,17 +19,18 @@ class MessageType(Enum):
 class Request:
     key_length = key_gen.key_length
     host_type_length = 1
+    ip_port_length = 2
 
     @staticmethod
     def decode(payload_length, payload):
-        (host_type, key) = unpack(">?{}s".format(Request.key_length), payload)
-        return host_type, key.decode()
+        (host_type, port, key) = unpack(">?H{}s".format(Request.key_length), payload)
+        return host_type, port, key.decode()
 
     @staticmethod
     def encode(msg_id, payload):
-        host_type, key = payload
+        host_type, port, key = payload
         key = bytes(key, 'UTF-8')
-        return pack(">HH?{}s".format(Request.key_length), msg_id, Request.key_length + Request.host_type_length, host_type, key)
+        return pack(">HH?H{}s".format(Request.key_length), msg_id, Request.key_length + Request.host_type_length + Request.ip_port_length, host_type, port, key)
 
 
 class FileTransfer:
@@ -49,14 +50,14 @@ class FileTransfer:
     def decode_payload(fn_length, bytesread, payload):
         (filename,) = unpack(">{}s".format(fn_length),
                              payload[:fn_length])
+        bytesread = len(payload[fn_length:])
         (file,) = unpack(">{}s".format(bytesread), payload[fn_length:])
-        return (filename, file)
+        return filename, file
 
     @staticmethod
     def decode(fn_length, payload):
         (file_size, bytesread) = FileTransfer.decode_additional_metadata(payload)
         (filename, file) = FileTransfer.decode_payload(fn_length, bytesread, payload[FileTransfer.total_metadata_length:])
-
         return filename.decode("utf-8"), file_size, bytesread, file
 
     @staticmethod
@@ -117,8 +118,10 @@ class Message:
     @staticmethod
     def decode(payload):
         (message_id, payload_length) = unpack(">HH", payload[:Message.metadata_length])
-        return Message.messages_map[message_id].decode(payload_length,
+        if message_id in Message.messages_map.keys():
+            return Message.messages_map[message_id].decode(payload_length,
                                                        payload[Message.metadata_length:])
+
 
     @staticmethod
     def encode(msg_id, payload):

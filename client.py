@@ -7,43 +7,79 @@ import tracker
 from _thread import *
 import server
 import files
+import utils
+import os
+from time import sleep
 
 default_port = 7854
 
 class Client:
-    def __init__(self):
+    def __init__(self, key, trackers):
         self.s = None
-        self.port = default_port
-        self.tracker_port = tracker.default_tracker_port
-        self.key = ""
-        self.open_connections = 100
+        self.trackers = []
+        self.key = key
+        self.trackers = tracker.prepare_trackers(trackers)
+        #self.open_connections = 100
         self.servers = []
-        self.connected_clients = []
-        self.ip = "localhost"
-        self.backup_directory = "\\BACKUP"
+        #self.clients = []
+        #self.connected_clients = []
+        self.backup_directory = "\\BACKUP\\" + key
+
 
     def start(self):
         self.s = socket.socket()
         #self.s.setblocking(False)
-        self.run()
+        try:
+            self.run()
+        except KeyboardInterrupt:
+            self.shutdown()
+
+    def shutdown(self):
+        self.s.close()
+        logging.info("Shut down")
 
     def restart_socket(self):
         self.s.close()
         self.s = socket.socket()
         #self.s.setblocking(False)
 
-    def retrieve_servers_from_tracker(self):
-        self.s.connect((self.ip, self.tracker_port))
-        msg = Message.encode(MessageType.Request.value, (HostType.CLIENT.value, key_gen.gen_key()))
-        self.s.send(msg)
-        payload = self.s.recv(1024);
+    def is_connected_to_host(self, sock, ip, port):
+        try:
+            return sock.getpeername() == (ip, port)
+        except:
+            pass
+        return False
+
+    def connect_to_host(self, sock, ip, port):
+        if self.is_connected_to_host(sock, ip, port):
+            return True
+        try:
+            sock.connect((ip, port))
+            return True
+        except socket.error as exc:
+            logging.info("Caught exception socket.error when connecting: %s" % exc)
+        return False
+
+    def retrieve_servers_from_tracker(self, sock):
+        msg = Message.encode(MessageType.Request.value, (HostType.CLIENT.value, sock.getsockname()[1], self.key))
+        sock.send(msg)
+        payload = sock.recv(1024);
         msg = Message.decode(payload)
         if msg:
-            self.servers = payload
+            self.servers.extend(utils.get_complement_values_from_list(msg, self.servers))
             logging.info(f'Retrieved servers\' addresses: {msg}')
         else:
             logging.info("No servers connected to tracker on key")
-        self.s.close()
+
+    def retrieve_servers_from_trackers(self):
+        while True:
+            for tr in self.trackers:
+                logging.info(
+                    "Trying to retrieve connected server hosts from tracker %s:%s" % (
+                        tr["ip"], tr["port"]))
+                if self.connect_to_host(tr["socket"], tr["ip"], tr["port"]):
+                    self.retrieve_servers_from_tracker(tr["socket"])
+                    return
 
     def listen_for_incoming_files(self):
         logging.info("Started thread: listening for incoming files")
@@ -59,31 +95,32 @@ class Client:
                 downloaded_bytes += bytesread
                 logging.info(f"Downloading file {filename}: {downloaded_bytes} / {file_size}")
                 file.write(file_part)
+                #print(os.stat(filename).st_size)
                 msg = self.s.recv(files.BUFFER_SIZE)
+                #print(msg)
                 other_filename, file_size, bytesread, file_part = Message.decode(msg)
             file.close()
             filename = other_filename
             downloaded_bytes = 0
         logging.info("All files has been received")
 
-
     def establish_connection_with_server(self):
-        self.restart_socket()
-        self.s.connect((self.ip, server.default_port))
-        logging.info("Established connection with %s:%s" % (self.ip, server.default_port))
+        for serv in self.servers:
+            self.restart_socket()
+            self.connect_to_host(self.s, serv[0], serv[1])
+            logging.info("Established connection with %s:%s" % (serv[0], serv[1]))
+            self.listen_for_incoming_files()
+            return
 
     def run(self):
-        self.retrieve_servers_from_tracker()
-        self.establish_connection_with_server()
-        start_new_thread(self.listen_for_incoming_files, ())
+        start_new_thread(self.retrieve_servers_from_trackers, ())
         while True:
-            try:
-                pass
-            except KeyboardInterrupt:
-                return
+            self.establish_connection_with_server()
+
 
 if __name__ == '__main__':
     prepare_logger(HostType.CLIENT.name)
-    client = Client()
+    trackers = [("127.0.0.1", tracker.default_tracker_port)]
+    client = Client(key_gen.gen_key(), trackers)
     client.start()
 
