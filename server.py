@@ -2,8 +2,10 @@ import errno
 import getopt
 import socket
 import sys
+from time import sleep
 
 import message
+import utils
 from message import Message, HostType, MessageType
 import logging
 from logger import prepare_logger
@@ -17,28 +19,36 @@ import os
 default_port = 31235
 
 class Server:
-    def __init__(self, key, trackers):
+    def __init__(self, key, trackers, directories):
         self.s = None
         self.ip = "localhost"
+        self.socket_range = 50
         self.port = default_port
-        self.tracker_port = tracker.default_tracker_port
         self.key = key
         self.open_connections = 100
         self.clients = []
         self.connected_clients = []
-        self.directories = []
+        self.directories = directories
+        self.trackers = tracker.prepare_trackers(trackers)
 
     def start(self):
-        self.directories.append("C:\Temp")
+        logging.info(f"Directories to backup: {directories}")
         self.s = socket.socket()
-        self.allocate_port()
+        if not self.allocate_port():
+            logging.info("Shutting down")
+            self.s.close()
+            sys.exit()
         self.s.listen(self.open_connections)
         self.run()
         self.s.close()
 
     def allocate_port(self):
-        while not self.try_to_allocate_port():
+        for i in range(1, self.socket_range):
+            if self.try_to_allocate_port():
+                return True
             self.port += 1
+        logging.info("Socket couldn't be opened")
+        return False
 
     def try_to_allocate_port(self):
         try:
@@ -50,19 +60,26 @@ class Server:
                 return False
         return True
 
-    def retrieve_clients_from_tracker(self):
-        sock = socket.socket()
-        sock.connect((self.ip, self.tracker_port))
+    def retrieve_clients_from_tracker(self, sock):
         msg = Message.encode(MessageType.Request.value, (HostType.SERVER.value, self.port, self.key))
         sock.send(msg)
         payload = sock.recv(1024);
         msg = Message.decode(payload)
         if msg:
-            self.clients = msg
+            self.clients.extend(utils.get_complement_values_from_list(msg, self.clients))
             logging.info(f"Clients retrieved from tracker: {msg}")
         else:
             logging.info("No clients connected to tracker on key")
-        sock.close()
+
+    def retrieve_clients_from_trackers(self):
+        while True:
+            for tr in self.trackers:
+                logging.info(
+                    "Trying to retrieve connected client hosts from tracker %s:%s" % (
+                        tr["ip"], tr["port"]))
+                if utils.connect_to_host(tr["socket"], tr["ip"], tr["port"]):
+                    self.retrieve_clients_from_tracker(tr["socket"])
+            sleep(20)
 
     def send_file(self, conn, file):
         filename = file
@@ -94,10 +111,9 @@ class Server:
             logging.info("Accepted a connection request from %s:%s" % (address[0], address[1]))
             self.connected_clients.append({conn: address})
             start_new_thread(self.send_all_files_to_client, (conn,))
-            # send_message(conn, payload, address)
 
     def run(self):
-        start_new_thread(self.retrieve_clients_from_tracker, ())
+        start_new_thread(self.retrieve_clients_from_trackers, ())
         start_new_thread(self.listen_for_connections, ())
         while True:
             try:
@@ -105,9 +121,11 @@ class Server:
             except KeyboardInterrupt:
                 return
 
+
 def print_help():
     print('server.py -k key:\n'
           'key - same key as the server which is used to get server\'s ip from a tracker')
+
 
 def parse_arguments(argv):
     key = ''
@@ -125,13 +143,15 @@ def parse_arguments(argv):
             key = arg
     if key == '':
         key = key_gen.gen_key()
-        #logging.info("Key has been generated: " + key)
+        logging.info("Key has been generated: " + key)
     return key
 
+
 if __name__ == '__main__':
-    key = parse_arguments(sys.argv[1:])
     prepare_logger(HostType.SERVER.name)
+    key = parse_arguments(sys.argv[1:])
     trackers = [("127.0.0.1", tracker.default_tracker_port)]
-    server = Server(key, trackers)
+    directories = ["C:\\Temp", "C:\\Oracle SQL"]
+    server = Server(key, trackers, directories)
     server.start()
 

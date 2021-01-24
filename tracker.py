@@ -1,5 +1,7 @@
 import socket
 import logging
+
+import utils
 from message import Message, HostType, MessageType
 from logger import prepare_logger
 from _thread import start_new_thread
@@ -31,9 +33,12 @@ class Tracker:
     def handle_payload(self, host_ip, host_port, host_type, host_key):
         if HostType(host_type) is HostType.SERVER:
             self.connections[host_key]["servers"].append((host_ip, host_port))
+            #self.connections[host_key]["servers"].extend(utils.get_complement_values_from_list([(host_ip, host_port)], self.connections[host_key]["servers"]))
             return Message.encode(MessageType.PeersMessage.value, self.connections[host_key]["clients"])
         elif HostType(host_type) is HostType.CLIENT:
             self.connections[host_key]["clients"].append((host_ip, host_port))
+            #self.connections[host_key]["clients"].extend(
+            #    utils.get_complement_values_from_list([(host_ip, host_port)], self.connections[host_key]["clients"]))
             return Message.encode(MessageType.PeersMessage.value, self.connections[host_key]["servers"])
 
     def send_message_about_connected_hosts(self, conn, payload, host_ip):

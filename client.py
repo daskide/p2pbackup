@@ -55,23 +55,6 @@ class Client:
         self.s = socket.socket()
         #self.s.setblocking(False)
 
-    def is_connected_to_host(self, sock, ip, port):
-        try:
-            return sock.getpeername() == (ip, port)
-        except:
-            pass
-        return False
-
-    def connect_to_host(self, sock, ip, port):
-        if self.is_connected_to_host(sock, ip, port):
-            return True
-        try:
-            sock.connect((ip, port))
-            return True
-        except socket.error as exc:
-            logging.info("Caught exception socket.error when connecting: %s" % exc)
-        return False
-
     def retrieve_servers_from_tracker(self, sock):
         msg = Message.encode(MessageType.Request.value, (HostType.CLIENT.value, sock.getsockname()[1], self.key))
         sock.send(msg)
@@ -89,7 +72,7 @@ class Client:
                 logging.info(
                     "Trying to retrieve connected server hosts from tracker %s:%s" % (
                         tr["ip"], tr["port"]))
-                if self.connect_to_host(tr["socket"], tr["ip"], tr["port"]):
+                if utils.connect_to_host(tr["socket"], tr["ip"], tr["port"]):
                     self.retrieve_servers_from_tracker(tr["socket"])
             sleep(20)
 
@@ -127,7 +110,7 @@ class Client:
         while True:
             for serv in self.servers:
                 self.restart_socket()
-                self.connect_to_host(self.s, serv[0], serv[1])
+                utils.connect_to_host(self.s, serv[0], serv[1])
                 logging.info("Established connection with %s:%s" % (serv[0], serv[1]))
                 self.download_incoming_files()
                 return
