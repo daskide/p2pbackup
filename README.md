@@ -16,7 +16,7 @@ Launching server.py without any argument will generate key.
 
 
 # TO DO
-Global ip tests
-Change server-trackers-clients into peers. Tracker, server and client can be all merged into equal peer. I didn't implement it yet because target machine usually is intended to either send backup or receive and store it.
+- Global ip tests
+- Change server-trackers-clients into peers. Tracker, server and client can be all merged into equal peer. I didn't implement it yet because target machine usually is intended to either send backup or receive and store it.
 
 
