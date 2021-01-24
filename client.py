@@ -91,10 +91,10 @@ class Client:
                         tr["ip"], tr["port"]))
                 if self.connect_to_host(tr["socket"], tr["ip"], tr["port"]):
                     self.retrieve_servers_from_tracker(tr["socket"])
-            sleep(10)
+            sleep(20)
 
 
-    def listen_for_incoming_files(self):
+    def download_incoming_files(self):
         logging.info("Started thread: listening for incoming files")
         msg = self.s.recv(files.BUFFER_SIZE)
         filename, file_size, bytesread, file_part = Message.decode(msg)
@@ -107,16 +107,17 @@ class Client:
             file = open(file_save_location, "wb")
             progress = tqdm.tqdm(range(file_size), f"Receiving {filename}", unit="B", unit_scale=True,
                                  unit_divisor=1024)
-
             while filename == other_filename:
                 downloaded_bytes += bytesread
-                #logging.info(f"Downloading file {filename}: {downloaded_bytes} / {file_size}")
                 file.write(file_part)
-                #print(os.stat(filename).st_size)
                 msg = self.s.recv(files.BUFFER_SIZE)
-                #print(msg)
-                other_filename, file_size, bytesread, file_part = Message.decode(msg)
-                progress.update(bytesread)
+                if len(msg) > Message.id_msg_length:
+                    other_filename, file_size, bytesread, file_part = Message.decode(msg)
+                    progress.update(len(file_part))
+                else:
+                    file_part = 0
+                    break
+            progress.close()
             file.close()
             filename = other_filename
             downloaded_bytes = 0
@@ -128,13 +129,13 @@ class Client:
                 self.restart_socket()
                 self.connect_to_host(self.s, serv[0], serv[1])
                 logging.info("Established connection with %s:%s" % (serv[0], serv[1]))
-                self.listen_for_incoming_files()
+                self.download_incoming_files()
                 return
             sleep(10)
 
     def handle_input(self):
         while True:
-            inp = input("quit: to quit")
+            inp = input("Enter \"quit\": to quit\n")
             if inp == "quit":
                 return False
             return True

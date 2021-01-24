@@ -4,7 +4,6 @@ import socket
 import sys
 
 import message
-import utils
 from message import Message, HostType, MessageType
 import logging
 from logger import prepare_logger
@@ -23,32 +22,19 @@ class Server:
         self.ip = "localhost"
         self.port = default_port
         self.tracker_port = tracker.default_tracker_port
-        self.key = ""
+        self.key = key
         self.open_connections = 100
         self.clients = []
         self.connected_clients = []
         self.directories = []
-        self.trackers = []
 
     def start(self):
         self.directories.append("C:\Temp")
         self.s = socket.socket()
         self.allocate_port()
         self.s.listen(self.open_connections)
-        try:
-            self.run()
-        except KeyboardInterrupt:
-            pass
-        self.shutdown()
-
-    def shutdown(self):
-        self.close_all_sockets()
-        logging.info("Shut down")
-
-    def close_all_sockets(self):
+        self.run()
         self.s.close()
-        for tr in self.trackers:
-            tr["socket"].close()
 
     def allocate_port(self):
         while not self.try_to_allocate_port():
@@ -67,7 +53,7 @@ class Server:
     def retrieve_clients_from_tracker(self):
         sock = socket.socket()
         sock.connect((self.ip, self.tracker_port))
-        msg = Message.encode(MessageType.Request.value, (HostType.SERVER.value, self.port, key_gen.gen_key()))
+        msg = Message.encode(MessageType.Request.value, (HostType.SERVER.value, self.port, self.key))
         sock.send(msg)
         payload = sock.recv(1024);
         msg = Message.decode(payload)
@@ -98,8 +84,8 @@ class Server:
             for file in files.get_absolute_file_paths(dir):
                 self.send_file(conn, file)
         logging.info("Sent all files")
-        #msg = Message.encode(MessageType.File.value, ("", 0, bytes()))
-        #conn.send(msg)
+        msg = bytes(Message.id_msg_length)
+        conn.send(msg)
 
     def listen_for_connections(self):
         logging.info("Started thread: listening for connections")
@@ -107,13 +93,17 @@ class Server:
             (conn, address) = self.s.accept()
             logging.info("Accepted a connection request from %s:%s" % (address[0], address[1]))
             self.connected_clients.append({conn: address})
-            utils.start_new_thread(self.send_all_files_to_client, (conn,), True)
+            start_new_thread(self.send_all_files_to_client, (conn,))
             # send_message(conn, payload, address)
 
     def run(self):
-        utils.start_new_thread(self.retrieve_clients_from_tracker, (), True)
-        utils.start_new_thread(self.listen_for_connections, (), True)
-        self.handle_input()
+        start_new_thread(self.retrieve_clients_from_tracker, ())
+        start_new_thread(self.listen_for_connections, ())
+        while True:
+            try:
+                pass
+            except KeyboardInterrupt:
+                return
 
 def print_help():
     print('server.py -k key:\n'
@@ -135,7 +125,7 @@ def parse_arguments(argv):
             key = arg
     if key == '':
         key = key_gen.gen_key()
-        logging.info("Key has been generated: " + key)
+        #logging.info("Key has been generated: " + key)
     return key
 
 if __name__ == '__main__':
