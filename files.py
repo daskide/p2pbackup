@@ -1,6 +1,6 @@
 import os
 
-BUFFER_SIZE = 16384 #16384
+BUFFER_SIZE = 65000 #16384 #32758
 
 
 def get_absolute_file_paths(directory):

@@ -1,4 +1,7 @@
 import socket
+
+import tqdm
+
 from message import Message, HostType, MessageType
 import logging
 from logger import prepare_logger
@@ -97,19 +100,23 @@ class Client:
         filename, file_size, bytesread, file_part = Message.decode(msg)
         other_filename = filename
         downloaded_bytes = 0
+
         while file_part:
             file_save_location = files.get_save_location(other_filename, self.backup_directory)
             files.make_dirs(file_save_location)
             file = open(file_save_location, "wb")
+            progress = tqdm.tqdm(range(file_size), f"Receiving {filename}", unit="B", unit_scale=True,
+                                 unit_divisor=1024)
 
             while filename == other_filename:
                 downloaded_bytes += bytesread
-                logging.info(f"Downloading file {filename}: {downloaded_bytes} / {file_size}")
+                #logging.info(f"Downloading file {filename}: {downloaded_bytes} / {file_size}")
                 file.write(file_part)
                 #print(os.stat(filename).st_size)
                 msg = self.s.recv(files.BUFFER_SIZE)
                 #print(msg)
                 other_filename, file_size, bytesread, file_part = Message.decode(msg)
+                progress.update(bytesread)
             file.close()
             filename = other_filename
             downloaded_bytes = 0
@@ -134,8 +141,7 @@ class Client:
 
     def run(self):
         utils.start_new_thread(self.retrieve_servers_from_trackers, (), True)
-        utils.start_new_thread(self.establish_connection_with_server(), (), True)
-        logging.info("huh")
+        utils.start_new_thread(self.establish_connection_with_server, (), True)
         self.handle_input()
 
 def print_help():

@@ -4,6 +4,7 @@ import socket
 import sys
 
 import message
+import utils
 from message import Message, HostType, MessageType
 import logging
 from logger import prepare_logger
@@ -27,14 +28,27 @@ class Server:
         self.clients = []
         self.connected_clients = []
         self.directories = []
+        self.trackers = []
 
     def start(self):
         self.directories.append("C:\Temp")
         self.s = socket.socket()
         self.allocate_port()
         self.s.listen(self.open_connections)
-        self.run()
+        try:
+            self.run()
+        except KeyboardInterrupt:
+            pass
+        self.shutdown()
+
+    def shutdown(self):
+        self.close_all_sockets()
+        logging.info("Shut down")
+
+    def close_all_sockets(self):
         self.s.close()
+        for tr in self.trackers:
+            tr["socket"].close()
 
     def allocate_port(self):
         while not self.try_to_allocate_port():
@@ -93,23 +107,17 @@ class Server:
             (conn, address) = self.s.accept()
             logging.info("Accepted a connection request from %s:%s" % (address[0], address[1]))
             self.connected_clients.append({conn: address})
-            start_new_thread(self.send_all_files_to_client, (conn,))
+            utils.start_new_thread(self.send_all_files_to_client, (conn,), True)
             # send_message(conn, payload, address)
 
     def run(self):
-        start_new_thread(self.retrieve_clients_from_tracker, ())
-        start_new_thread(self.listen_for_connections, ())
-        while True:
-            try:
-                pass
-            except KeyboardInterrupt:
-                return
+        utils.start_new_thread(self.retrieve_clients_from_tracker, (), True)
+        utils.start_new_thread(self.listen_for_connections, (), True)
+        self.handle_input()
 
 def print_help():
-    print('client.py -k key [-b backup_dir] [-d]:\n'
-          'key - same key as the server which is used to get server\'s ip from a tracker\n'
-          'backup_dir - dir to backup data\n'
-          'd - flag to add key to directory path')
+    print('server.py -k key:\n'
+          'key - same key as the server which is used to get server\'s ip from a tracker')
 
 def parse_arguments(argv):
     key = ''
@@ -131,8 +139,9 @@ def parse_arguments(argv):
     return key
 
 if __name__ == '__main__':
-    prepare_logger(HostType.SERVER.name)
     key = parse_arguments(sys.argv[1:])
-    server = Server(key, [])
+    prepare_logger(HostType.SERVER.name)
+    trackers = [("127.0.0.1", tracker.default_tracker_port)]
+    server = Server(key, trackers)
     server.start()
 
