@@ -3,7 +3,7 @@ import logging
 from message import Message, HostType, MessageType
 from logger import prepare_logger
 from _thread import start_new_thread
-default_tracker_port = 6703
+default_tracker_port = 6704
 
 
 def prepare_trackers(trackers):
@@ -47,7 +47,8 @@ class Tracker:
     def listen_for_message(self, conn, address):
         while True:
             payload = conn.recv(1024)
-            self.send_message_about_connected_hosts(conn, payload, address[0])
+            if len(payload) > Message.id_msg_length + Message.metadata_length + Message.payload_msg_length:
+                self.send_message_about_connected_hosts(conn, payload, address[0])
         conn.close()
 
     def listen_for_connections(self):
@@ -64,6 +65,7 @@ class Tracker:
 
     def start(self):
         self.sock = socket.socket()
+        self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.sock.bind((self.ip, self.tracker_port))
         self.sock.listen(self.open_connections)
         self.run()

@@ -1,5 +1,8 @@
 import errno
+import getopt
 import socket
+import sys
+
 import message
 from message import Message, HostType, MessageType
 import logging
@@ -11,10 +14,10 @@ from _thread import *
 import tqdm
 import os
 
-default_port = 31234
+default_port = 31235
 
 class Server:
-    def __init__(self):
+    def __init__(self, key, trackers):
         self.s = None
         self.ip = "localhost"
         self.port = default_port
@@ -36,7 +39,6 @@ class Server:
     def allocate_port(self):
         while not self.try_to_allocate_port():
             self.port += 1
-            self.try_to_allocate_port()
 
     def try_to_allocate_port(self):
         try:
@@ -103,9 +105,34 @@ class Server:
             except KeyboardInterrupt:
                 return
 
+def print_help():
+    print('client.py -k key [-b backup_dir] [-d]:\n'
+          'key - same key as the server which is used to get server\'s ip from a tracker\n'
+          'backup_dir - dir to backup data\n'
+          'd - flag to add key to directory path')
+
+def parse_arguments(argv):
+    key = ''
+
+    try:
+        opts, args = getopt.getopt(argv, "hk", ["key="])
+    except getopt.GetoptError:
+        print_help()
+        sys.exit(2)
+    for opt, arg in opts:
+        if opt == '-h':
+            print_help()
+            sys.exit()
+        elif opt in ("-k", "--key"):
+            key = arg
+    if key == '':
+        key = key_gen.gen_key()
+        logging.info("Key has been generated: " + key)
+    return key
 
 if __name__ == '__main__':
     prepare_logger(HostType.SERVER.name)
-    server = Server()
+    key = parse_arguments(sys.argv[1:])
+    server = Server(key, [])
     server.start()
 

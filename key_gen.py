@@ -1,7 +1,7 @@
 import random
 import string
 
-key_length = 64
+key_length = 12
 
 def gen_key(length = key_length):
     letters = string.ascii_lowercase

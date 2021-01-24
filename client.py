@@ -4,17 +4,19 @@ import logging
 from logger import prepare_logger
 import key_gen
 import tracker
-from _thread import *
+#from _thread import *
+import threading
 import server
 import files
-import utils
 import os
 from time import sleep
-
+import utils
 default_port = 7854
+import sys
+import getopt
 
 class Client:
-    def __init__(self, key, trackers):
+    def __init__(self, key, backup_dir, trackers):
         self.s = None
         self.trackers = []
         self.key = key
@@ -22,21 +24,28 @@ class Client:
         #self.open_connections = 100
         self.servers = []
         #self.clients = []
-        #self.connected_clients = []
-        self.backup_directory = "\\BACKUP\\" + key
+        self.backup_directory = backup_dir
 
 
     def start(self):
         self.s = socket.socket()
+        logging.info("Host's key: " + self.key)
+        logging.info("Backup directory: " + self.backup_directory)
         #self.s.setblocking(False)
         try:
             self.run()
         except KeyboardInterrupt:
-            self.shutdown()
+            pass
+        self.shutdown()
 
     def shutdown(self):
-        self.s.close()
+        self.close_all_sockets()
         logging.info("Shut down")
+
+    def close_all_sockets(self):
+        self.s.close()
+        for tr in self.trackers:
+            tr["socket"].close()
 
     def restart_socket(self):
         self.s.close()
@@ -79,7 +88,8 @@ class Client:
                         tr["ip"], tr["port"]))
                 if self.connect_to_host(tr["socket"], tr["ip"], tr["port"]):
                     self.retrieve_servers_from_tracker(tr["socket"])
-                    return
+            sleep(10)
+
 
     def listen_for_incoming_files(self):
         logging.info("Started thread: listening for incoming files")
@@ -91,6 +101,7 @@ class Client:
             file_save_location = files.get_save_location(other_filename, self.backup_directory)
             files.make_dirs(file_save_location)
             file = open(file_save_location, "wb")
+
             while filename == other_filename:
                 downloaded_bytes += bytesread
                 logging.info(f"Downloading file {filename}: {downloaded_bytes} / {file_size}")
@@ -102,25 +113,68 @@ class Client:
             file.close()
             filename = other_filename
             downloaded_bytes = 0
-        logging.info("All files has been received")
+        logging.info("All files have been received")
 
     def establish_connection_with_server(self):
-        for serv in self.servers:
-            self.restart_socket()
-            self.connect_to_host(self.s, serv[0], serv[1])
-            logging.info("Established connection with %s:%s" % (serv[0], serv[1]))
-            self.listen_for_incoming_files()
-            return
+        while True:
+            for serv in self.servers:
+                self.restart_socket()
+                self.connect_to_host(self.s, serv[0], serv[1])
+                logging.info("Established connection with %s:%s" % (serv[0], serv[1]))
+                self.listen_for_incoming_files()
+                return
+            sleep(10)
+
+    def handle_input(self):
+        while True:
+            inp = input("quit: to quit")
+            if inp == "quit":
+                return False
+            return True
 
     def run(self):
-        start_new_thread(self.retrieve_servers_from_trackers, ())
-        while True:
-            self.establish_connection_with_server()
+        utils.start_new_thread(self.retrieve_servers_from_trackers, (), True)
+        utils.start_new_thread(self.establish_connection_with_server(), (), True)
+        logging.info("huh")
+        self.handle_input()
 
+def print_help():
+    print('client.py -k key [-b backup_dir] [-d]:\n'
+          'key - same key as the server which is used to get server\'s ip from a tracker\n'
+          'backup_dir - dir to backup data\n'
+          'd - flag to add key to directory path')
+
+def parse_arguments(argv):
+    key = ''
+    backup_dir = "C:\\BACKUP\\"
+    key_to_dir = False
+
+    try:
+        opts, args = getopt.getopt(argv, "hk:b:d", ["key=", "backup_dir="])
+    except getopt.GetoptError:
+        print_help()
+        sys.exit(2)
+    for opt, arg in opts:
+        if opt == '-h':
+            print_help()
+            sys.exit()
+        elif opt in ("-k", "--key"):
+            key = arg
+        elif opt in ("-b", "--backup_dir"):
+            backup_dir = arg
+        elif opt in ("-d", "--key_to_dir"):
+            key_to_dir = True
+    if key == '':
+        print_help()
+        sys.exit()
+    if key_to_dir is True:
+        backup_dir += key
+    return key, backup_dir
 
 if __name__ == '__main__':
+    key, backup_dir = parse_arguments(sys.argv[1:])
     prepare_logger(HostType.CLIENT.name)
     trackers = [("127.0.0.1", tracker.default_tracker_port)]
-    client = Client(key_gen.gen_key(), trackers)
+    client = Client(key, backup_dir, trackers)
     client.start()
 

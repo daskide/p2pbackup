@@ -13,7 +13,7 @@ def get_absolute_file_paths(directory):
 
 def get_save_location(file_name, directory):
     drive_tail = os.path.splitdrive(file_name)
-    save_location = drive_tail[0] + f"{directory}" + drive_tail[1]
+    save_location = f"{directory}" + drive_tail[1] #drive_tail[0] +
     return save_location
 
 
