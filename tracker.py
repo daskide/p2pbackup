@@ -1,10 +1,11 @@
 import socket
 import logging
 
-import utils
 from message import Message, HostType, MessageType
 from logger import prepare_logger
 from _thread import start_new_thread
+
+
 default_tracker_port = 6704
 
 
@@ -75,6 +76,7 @@ class Tracker:
         self.sock.listen(self.open_connections)
         self.run()
         self.sock.close()
+
 
 if __name__ == '__main__':
     prepare_logger(HostType.TRACKER.name)

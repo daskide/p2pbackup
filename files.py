@@ -1,6 +1,7 @@
 import os
 
-BUFFER_SIZE = 65000 #16384 #32758
+BUFFER_SIZE = 65000
+#16384 #32758
 
 
 def get_absolute_file_paths(directory):
@@ -13,7 +14,7 @@ def get_absolute_file_paths(directory):
 
 def get_save_location(file_name, directory):
     drive_tail = os.path.splitdrive(file_name)
-    save_location = f"{directory}" + drive_tail[1] #drive_tail[0] +
+    save_location = f"{directory}" + drive_tail[1]
     return save_location
 
 

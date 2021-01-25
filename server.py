@@ -18,6 +18,7 @@ import os
 
 default_port = 31235
 
+
 class Server:
     def __init__(self, key, trackers, directories):
         self.s = None
@@ -129,7 +130,6 @@ def print_help():
 
 def parse_arguments(argv):
     key = ''
-
     try:
         opts, args = getopt.getopt(argv, "hk", ["key="])
     except getopt.GetoptError:

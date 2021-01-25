@@ -1,6 +1,5 @@
 from struct import pack, unpack
 from enum import Enum
-import key_gen
 from socket import inet_aton, inet_ntoa
 
 
@@ -17,20 +16,24 @@ class MessageType(Enum):
 
 
 class Request:
-    key_length = key_gen.key_length
     host_type_length = 1
     ip_port_length = 2
+    total_metadata_length = host_type_length + ip_port_length
 
     @staticmethod
     def decode(payload_length, payload):
-        (host_type, port, key) = unpack(">?H{}s".format(Request.key_length), payload)
+        (host_type, port, key) = unpack(">?H{}s".format(payload_length - Request.total_metadata_length),
+                                        payload)
         return host_type, port, key.decode()
 
     @staticmethod
     def encode(msg_id, payload):
         host_type, port, key = payload
+        key_length = len(key)
         key = bytes(key, 'UTF-8')
-        return pack(">HH?H{}s".format(Request.key_length), msg_id, Request.key_length + Request.host_type_length + Request.ip_port_length, host_type, port, key)
+        return pack(">HH?H{}s".format(key_length), msg_id,
+                    key_length + Request.host_type_length + Request.ip_port_length,
+                    host_type, port, key)
 
 
 class FileTransfer:
@@ -51,7 +54,8 @@ class FileTransfer:
         (filename,) = unpack(">{}s".format(fn_length),
                              payload[:fn_length])
         bytesread = len(payload[fn_length:])
-        (file,) = unpack(">{}s".format(bytesread), payload[fn_length:])
+        (file,) = unpack(">{}s".format(bytesread),
+                         payload[fn_length:])
         return filename, file
 
     @staticmethod
@@ -65,7 +69,10 @@ class FileTransfer:
         filename, filesize, bytesread = payload
         fn_length = len(filename)
         bs_length = len(bytesread)
-        return pack(">HHIH{}s{}s".format(fn_length, bs_length), msg_id, fn_length, filesize, bs_length, bytes(filename, 'UTF-8'), bytesread)
+        return pack(">HHIH{}s{}s".format(fn_length, bs_length),
+                    msg_id, fn_length, filesize, bs_length,
+                    bytes(filename, 'UTF-8'), bytesread)
+
 
 class PeersMessage:
     ip_address_length = 4
@@ -89,7 +96,8 @@ class PeersMessage:
             final_payload.extend(inet_aton(host))
             final_payload.extend(port.to_bytes(2, 'big'))
         final_payload = bytes(final_payload)
-        return pack(">HH{}s".format(len(final_payload)), msg_id, len(final_payload), final_payload)
+        return pack(">HH{}s".format(len(final_payload)),
+                    msg_id, len(final_payload), final_payload)
 
 
 class MessagesMap:
@@ -108,6 +116,7 @@ class MessagesMap:
             if msg_cls == cls:
                 return msg_id
 
+
 class Message:
 
     id_msg_length = 2
@@ -120,7 +129,7 @@ class Message:
         (message_id, payload_length) = unpack(">HH", payload[:Message.metadata_length])
         if message_id in Message.messages_map.keys():
             return Message.messages_map[message_id].decode(payload_length,
-                                                       payload[Message.metadata_length:])
+                                                           payload[Message.metadata_length:])
 
 
     @staticmethod

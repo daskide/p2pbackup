@@ -1,22 +1,20 @@
 import socket
-
 import tqdm
-
-from message import Message, HostType, MessageType
-import logging
-from logger import prepare_logger
-import key_gen
-import tracker
-#from _thread import *
-import threading
-import server
-import files
-import os
 from time import sleep
-import utils
-default_port = 7854
 import sys
 import getopt
+
+from message import Message, HostType, MessageType
+from logger import prepare_logger
+import tracker
+import logging
+import files
+import utils
+import threading
+
+
+default_port = 7854
+
 
 class Client:
     def __init__(self, key, backup_dir, trackers):
@@ -34,7 +32,6 @@ class Client:
         self.s = socket.socket()
         logging.info("Host's key: " + self.key)
         logging.info("Backup directory: " + self.backup_directory)
-        #self.s.setblocking(False)
         try:
             self.run()
         except KeyboardInterrupt:
@@ -53,7 +50,6 @@ class Client:
     def restart_socket(self):
         self.s.close()
         self.s = socket.socket()
-        #self.s.setblocking(False)
 
     def retrieve_servers_from_tracker(self, sock):
         msg = Message.encode(MessageType.Request.value, (HostType.CLIENT.value, sock.getsockname()[1], self.key))
@@ -75,7 +71,6 @@ class Client:
                 if utils.connect_to_host(tr["socket"], tr["ip"], tr["port"]):
                     self.retrieve_servers_from_tracker(tr["socket"])
             sleep(20)
-
 
     def download_incoming_files(self):
         logging.info("Started thread: listening for incoming files")
@@ -128,11 +123,13 @@ class Client:
         utils.start_new_thread(self.establish_connection_with_server, (), True)
         self.handle_input()
 
+
 def print_help():
     print('client.py -k key [-b backup_dir] [-d]:\n'
           'key - same key as the server which is used to get server\'s ip from a tracker\n'
           'backup_dir - dir to backup data\n'
           'd - flag to add key to directory path')
+
 
 def parse_arguments(argv):
     key = ''
@@ -160,6 +157,7 @@ def parse_arguments(argv):
     if key_to_dir is True:
         backup_dir += key
     return key, backup_dir
+
 
 if __name__ == '__main__':
     key, backup_dir = parse_arguments(sys.argv[1:])

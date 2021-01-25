@@ -21,6 +21,7 @@ def connect_to_host(sock, ip, port):
         logging.info("Caught exception socket.error when connecting: %s" % exc)
     return False
 
+
 def get_complement_values_from_list(list1, list2):
     return list(set(list1) - set(list2))
 
