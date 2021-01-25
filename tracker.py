@@ -1,10 +1,8 @@
-import socket
-import logging
-
 from message import Message, HostType, MessageType
 from logger import prepare_logger
 from _thread import start_new_thread
-
+from utils import *
+from time import sleep
 
 default_tracker_port = 6704
 
@@ -22,6 +20,19 @@ def tracker_to_dict(socket, ip, port):
     return {"socket": socket, "ip": ip, "port": port}
 
 
+def retrieve_hosts_from_tracker(sock, host_type, port, key, hosts):
+    msg = Message.encode(MessageType.Request.value, (host_type.value, port, key))
+    sock.send(msg)
+    payload = sock.recv(1024);
+    msg = Message.decode(payload)
+    other_host_type = HostType(not host_type.value)
+    if msg:
+        hosts.extend(get_complement_values_from_list(msg, hosts))
+        logging.info(f"{other_host_type.name}S retrieved from tracker: {msg}")
+    else:
+        logging.info(f"NO {other_host_type.name}S connected to tracker on key \'{key}\'")
+
+
 class Tracker:
 
     def __init__(self):
@@ -33,13 +44,10 @@ class Tracker:
 
     def handle_payload(self, host_ip, host_port, host_type, host_key):
         if HostType(host_type) is HostType.SERVER:
-            self.connections[host_key]["servers"].append((host_ip, host_port))
-            #self.connections[host_key]["servers"].extend(utils.get_complement_values_from_list([(host_ip, host_port)], self.connections[host_key]["servers"]))
+            self.connections[host_key]["servers"].extend(get_complement_values_from_list([(host_ip, host_port)], self.connections[host_key]["servers"]))
             return Message.encode(MessageType.PeersMessage.value, self.connections[host_key]["clients"])
         elif HostType(host_type) is HostType.CLIENT:
-            self.connections[host_key]["clients"].append((host_ip, host_port))
-            #self.connections[host_key]["clients"].extend(
-            #    utils.get_complement_values_from_list([(host_ip, host_port)], self.connections[host_key]["clients"]))
+            self.connections[host_key]["clients"].extend(get_complement_values_from_list([(host_ip, host_port)], self.connections[host_key]["clients"]))
             return Message.encode(MessageType.PeersMessage.value, self.connections[host_key]["servers"])
 
     def send_message_about_connected_hosts(self, conn, payload, host_ip):
@@ -52,7 +60,10 @@ class Tracker:
 
     def listen_for_message(self, conn, address):
         while True:
-            payload = conn.recv(1024)
+            try:
+                payload = conn.recv(1024)
+            except:
+                pass
             if len(payload) > Message.id_msg_length + Message.metadata_length + Message.payload_msg_length:
                 self.send_message_about_connected_hosts(conn, payload, address[0])
         conn.close()
@@ -60,7 +71,7 @@ class Tracker:
     def listen_for_connections(self):
         (conn, address) = self.sock.accept()
         logging.info("Accepted a connection request from %s:%s" % (address[0], address[1]))
-        start_new_thread(self.listen_for_message, (conn, address))
+        start_new_thread(self.listen_for_message, (conn, address), True)
 
     def run(self):
         while True:

@@ -31,3 +31,12 @@ def start_new_thread(thread_function, args, daemon):
     x.start()
     return x
 
+
+def receive_payload(sock, payload_size):
+    try:
+        payload = sock.recv(payload_size)
+        return payload
+    except:
+        pass
+    return bytes()
+

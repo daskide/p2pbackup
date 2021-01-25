@@ -1,4 +1,3 @@
-import socket
 import tqdm
 from time import sleep
 import sys
@@ -7,10 +6,8 @@ import getopt
 from message import Message, HostType, MessageType
 from logger import prepare_logger
 import tracker
-import logging
 import files
-import utils
-import threading
+from utils import *
 
 
 default_port = 7854
@@ -22,11 +19,9 @@ class Client:
         self.trackers = []
         self.key = key
         self.trackers = tracker.prepare_trackers(trackers)
-        #self.open_connections = 100
         self.servers = []
-        #self.clients = []
+        self.request_time = 20
         self.backup_directory = backup_dir
-
 
     def start(self):
         self.s = socket.socket()
@@ -51,26 +46,17 @@ class Client:
         self.s.close()
         self.s = socket.socket()
 
-    def retrieve_servers_from_tracker(self, sock):
-        msg = Message.encode(MessageType.Request.value, (HostType.CLIENT.value, sock.getsockname()[1], self.key))
-        sock.send(msg)
-        payload = sock.recv(1024);
-        msg = Message.decode(payload)
-        if msg:
-            self.servers.extend(utils.get_complement_values_from_list(msg, self.servers))
-            logging.info(f'Retrieved servers\' addresses: {msg}')
-        else:
-            logging.info("No servers connected to tracker on key")
-
     def retrieve_servers_from_trackers(self):
         while True:
             for tr in self.trackers:
                 logging.info(
                     "Trying to retrieve connected server hosts from tracker %s:%s" % (
                         tr["ip"], tr["port"]))
-                if utils.connect_to_host(tr["socket"], tr["ip"], tr["port"]):
-                    self.retrieve_servers_from_tracker(tr["socket"])
-            sleep(20)
+                if connect_to_host(tr["socket"], tr["ip"], tr["port"]):
+                    tracker.retrieve_hosts_from_tracker(tr["socket"], HostType.CLIENT,
+                                                          tr["socket"].getsockname()[1],
+                                                          self.key, self.servers)
+            sleep(self.request_time)
 
     def download_incoming_files(self):
         logging.info("Started thread: listening for incoming files")
@@ -105,7 +91,7 @@ class Client:
         while True:
             for serv in self.servers:
                 self.restart_socket()
-                utils.connect_to_host(self.s, serv[0], serv[1])
+                connect_to_host(self.s, serv[0], serv[1])
                 logging.info("Established connection with %s:%s" % (serv[0], serv[1]))
                 self.download_incoming_files()
                 return
@@ -119,8 +105,8 @@ class Client:
             return True
 
     def run(self):
-        utils.start_new_thread(self.retrieve_servers_from_trackers, (), True)
-        utils.start_new_thread(self.establish_connection_with_server, (), True)
+        start_new_thread(self.retrieve_servers_from_trackers, (), True)
+        start_new_thread(self.establish_connection_with_server, (), True)
         self.handle_input()
 
 

@@ -1,18 +1,16 @@
 import errno
 import getopt
-import socket
 import sys
 from time import sleep
 
 import message
 import utils
 from message import Message, HostType, MessageType
-import logging
 from logger import prepare_logger
 import files
 import key_gen
 import tracker
-from _thread import *
+from utils import *
 import tqdm
 import os
 
@@ -20,13 +18,14 @@ default_port = 31235
 
 
 class Server:
-    def __init__(self, key, trackers, directories):
+    def __init__(self, ip, key, trackers, directories):
         self.s = None
-        self.ip = "localhost"
+        self.ip = ip
         self.socket_range = 50
         self.port = default_port
         self.key = key
         self.open_connections = 100
+        self.request_time = 20
         self.clients = []
         self.connected_clients = []
         self.directories = directories
@@ -41,8 +40,12 @@ class Server:
             sys.exit()
         self.s.listen(self.open_connections)
         self.run()
-        self.s.close()
+        self.close_all_sockets()
 
+    def close_all_sockets(self):
+        self.s.close()
+        for tr in self.trackers:
+            tr["socket"].close()
     def allocate_port(self):
         for i in range(1, self.socket_range):
             if self.try_to_allocate_port():
@@ -61,26 +64,16 @@ class Server:
                 return False
         return True
 
-    def retrieve_clients_from_tracker(self, sock):
-        msg = Message.encode(MessageType.Request.value, (HostType.SERVER.value, self.port, self.key))
-        sock.send(msg)
-        payload = sock.recv(1024);
-        msg = Message.decode(payload)
-        if msg:
-            self.clients.extend(utils.get_complement_values_from_list(msg, self.clients))
-            logging.info(f"Clients retrieved from tracker: {msg}")
-        else:
-            logging.info("No clients connected to tracker on key")
-
     def retrieve_clients_from_trackers(self):
         while True:
             for tr in self.trackers:
                 logging.info(
                     "Trying to retrieve connected client hosts from tracker %s:%s" % (
                         tr["ip"], tr["port"]))
-                if utils.connect_to_host(tr["socket"], tr["ip"], tr["port"]):
-                    self.retrieve_clients_from_tracker(tr["socket"])
-            sleep(20)
+                if connect_to_host(tr["socket"], tr["ip"], tr["port"]):
+                    tracker.retrieve_hosts_from_tracker(tr["socket"], HostType.SERVER,
+                                                          self.port, self.key, self.clients)
+                sleep(self.request_time)
 
     def send_file(self, conn, file):
         filename = file
@@ -111,11 +104,11 @@ class Server:
             (conn, address) = self.s.accept()
             logging.info("Accepted a connection request from %s:%s" % (address[0], address[1]))
             self.connected_clients.append({conn: address})
-            start_new_thread(self.send_all_files_to_client, (conn,))
+            start_new_thread(self.send_all_files_to_client, (conn,), True)
 
     def run(self):
-        start_new_thread(self.retrieve_clients_from_trackers, ())
-        start_new_thread(self.listen_for_connections, ())
+        start_new_thread(self.retrieve_clients_from_trackers, (), True)
+        start_new_thread(self.listen_for_connections, (), True)
         while True:
             try:
                 pass
@@ -152,6 +145,6 @@ if __name__ == '__main__':
     key = parse_arguments(sys.argv[1:])
     trackers = [("127.0.0.1", tracker.default_tracker_port)]
     directories = ["C:\\Temp", "C:\\Oracle SQL"]
-    server = Server(key, trackers, directories)
+    server = Server("localhost", key, trackers, directories)
     server.start()
 
